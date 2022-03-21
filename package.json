@@ -1,0 +1,26 @@
+{
+  "name": "node-utils",
+  "version": "0.0.1",
+  "description": "Common node utils",
+  "scripts": {
+    "prepare": "husky install",
+    "format": "prettier --write ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloud-templates/node-utils.git"
+  },
+  "keywords": [],
+  "license": "MIT",
+  "homepage": "https://github.com/cloud-templates/node-utils#readme",
+  "devDependencies": {
+    "husky": "^7.0.4",
+    "lint-staged": "^12.3.4",
+    "prettier": "^2.5.1"
+  },
+  "lint-staged": {
+    "*.{js,ts,json}": [
+      "prettier --write"
+    ]
+  }
+}
