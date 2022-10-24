@@ -1,4 +1,9 @@
 // https://github.com/vexip-ui/lint-config/blob/main/scripts/release.ts
+// 发布时，选择需要发布的包
+// 版本号分别管理
+// 分支生成规则，packageName@version
+// 生成日志
+
 import fs from 'node:fs'
 import minimist from 'minimist'
 import semver from 'semver'
