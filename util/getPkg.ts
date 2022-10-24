@@ -8,5 +8,6 @@ export const getPkg = (): string | undefined => {
     );
     return pkg;
   } catch (error) {
+    throw new Error(`The package.json file does not exist or malformed`)
   }
 };
