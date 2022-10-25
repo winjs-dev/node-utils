@@ -1,15 +1,13 @@
-// https://github.com/vexip-ui/lint-config/blob/main/scripts/release.ts
-// 适用于 monorepo
-// 发布时，选择需要发布的包
-// 版本号分别管理
-// 分支生成规则，packageName@version
-// 生成日志
-
+// 适用于 single repo
 import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import minimist from 'minimist'
 import semver from 'semver'
 import prompts from 'prompts'
-import { logger, run, dryRun, getPackageInfo } from './utils'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { logger, run, dryRun } from './utils.ts'
 
 import type { ReleaseType } from 'semver'
 
@@ -20,7 +18,6 @@ const args = minimist<{
   tag?: string
 }>(process.argv.slice(2))
 
-const inputPkg = args._[0]
 const isDryRun = args.dry || args.d
 const releaseTag = args.tag || args.t
 
@@ -34,13 +31,11 @@ main().catch(error => {
 })
 
 async function main() {
-  const {
-    pkgName,
-    pkgDir,
-    pkgPath,
-    pkg,
-    currentVersion
-  } = await getPackageInfo(inputPkg)
+  const rootDir = path.resolve(fileURLToPath(import.meta.url), '../..')
+  const pkg = JSON.parse(
+    fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8')
+  )
+  const currentVersion = pkg.version
   const preId = args.preid || args.p || (semver.prerelease(currentVersion)?.[0])
 
   const versionIncrements: ReleaseType[] = [
@@ -75,13 +70,11 @@ async function main() {
     throw new Error(`Invalid target version: ${version}`)
   }
 
-  const tag = `${pkgName}@${version}`
-
   const { confirm } = await prompts([
     {
       type: 'confirm',
       name: 'confirm',
-      message: `Confirm release ${tag}?`
+      message: `Confirm release v${version}?`
     }
   ])
 
@@ -99,7 +92,7 @@ async function main() {
   logStep('Updating version...')
 
   pkg.version = version
-  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
+  fs.writeFileSync(path.resolve(rootDir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n')
 
   // 构建库
   logStep('Building package...')
@@ -113,20 +106,7 @@ async function main() {
   // 更新 Change Log
   logStep('Updating changelog...')
 
-  const changelogArgs = [
-    'conventional-changelog',
-    '-p',
-    'angular',
-    '-i',
-    'CHANGELOG.md',
-    '-s',
-    '--commit-path',
-    '.',
-    '--lerna-package',
-    pkgName
-  ]
-
-  await run('npx', changelogArgs, { cwd: pkgDir })
+  await run('pnpm', ['changelog'])
 
   // 提交改动
   logStep('Comitting changes...')
@@ -135,8 +115,8 @@ async function main() {
 
   if (stdout) {
     await runIfNotDry('git', ['add', '-A'])
-    await runIfNotDry('git', ['commit', '-m', `release(${pkgName}): v${version}`])
-    await runIfNotDry('git', ['tag', tag])
+    await runIfNotDry('git', ['commit', '-m', `release: v${version}`])
+    await runIfNotDry('git', ['tag', `v${version}`])
   } else {
     logSkipped('No changes to commit')
   }
@@ -162,7 +142,7 @@ async function main() {
   }
 
   try {
-    await run('pnpm', publishArgs, { stdio: 'pipe', cwd: pkgDir })
+    await run('pnpm', publishArgs, { stdio: 'pipe' })
     logger.successText(`Successfully published v${version}'`)
   } catch (err: any) {
     if (err.stderr?.match(/previously published/)) {
@@ -175,7 +155,7 @@ async function main() {
   // 推送到远程仓库
   logStep('Pushing to Remote Repository...')
 
-  await runIfNotDry('git', ['push', 'origin', `refs/tags/${tag}`])
+  await runIfNotDry('git', ['push', 'origin', `refs/tags/v${version}`])
   await runIfNotDry('git', ['push'])
 
   logger.withBothLn(() => {
