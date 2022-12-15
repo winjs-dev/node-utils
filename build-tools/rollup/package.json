@@ -1,4 +1,6 @@
 {
+  "name": "rollup-default-config",
+  "version": "0.0.1",
   "scripts": {
     "prebuild": "rimraf dist/* lib/* es/* esm/* typings/*",
     "build": "cross-env NODE_ENV=production rollup -c scripts/rollup.config.js",
