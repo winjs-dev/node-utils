@@ -1,3 +1,3 @@
 # node-utils
-收集常用的一些 node 工具方法
+收集常用的一些 web、node 相关的工具方法
 
