@@ -105,7 +105,7 @@ async function main() {
   logStep('Building package...')
 
   if (!isDryRun) {
-    await run('pnpm', ['build'])
+    await run('pnpm', ['build'], { cwd: pkgDir })
   } else {
     logSkipped()
   }
