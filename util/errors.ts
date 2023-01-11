@@ -1,3 +1,4 @@
+// https://github.com/egoist/tsup/blob/dev/src/errors.ts
 import { isMainThread, parentPort } from 'worker_threads'
 import * as colors from 'colorette'
 
@@ -42,8 +43,11 @@ export function handleError(error: any) {
 /**
  * usage
  *
- * import { handleError } from './errors'
+ * import { handleError, PrettyError } from './errors'
  *
  * main().catch(handleError)
  *
+ * throw new PrettyError(
+ *           '@swc/core is required for es5 target. Please install it with `npm install @swc/core -D`'
+ *         )
  */
