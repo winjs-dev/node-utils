@@ -1,4 +1,4 @@
-import * as chalk from 'chalk'
+import chalk from 'chalk'
 
 export const info = (...args: any[]): void => {
   console.log(chalk.cyan('info'), ...args)

@@ -1,8 +1,7 @@
 // https://github.com/facebook/create-react-app/blob/d960b9e38c062584ff6cfb1a70e1512509a966e7/packages/react-scripts/scripts/init.js#L19
 import path from 'path';
-import fs from 'fs-extra';
+import fse from 'fs-extra';
 import { execSync } from 'child_process';
-import spawn from 'cross-spawn';
 
 function isInGitRepository() {
   try {
@@ -54,7 +53,7 @@ export function tryGitCommit(appPath) {
     console.warn('Removing .git directory...');
     try {
       // unlinkSync() doesn't work on directories.
-      fs.removeSync(path.join(appPath, '.git'));
+      fse.removeSync(path.join(appPath, '.git'));
     } catch (removeErr) {
       // Ignore.
     }
