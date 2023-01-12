@@ -19,6 +19,7 @@
   "license": "MIT",
   "homepage": "https://github.com/cloud-templates/node-utils#readme",
   "devDependencies": {
+    "@types/minimist": "^1.2.2",
     "@types/fs-extra": "^11.0.1",
     "@types/node": "^18.8.4",
     "chalk": "^5.2.0",
@@ -28,6 +29,7 @@
     "husky": "^7.0.4",
     "kolorist": "^1.6.0",
     "lint-staged": "^12.3.4",
+    "minimist": "^1.2.7",
     "prettier": "^2.5.1",
     "strip-json-comments": "^5.0.0",
     "tree-kill": "^1.2.2",
