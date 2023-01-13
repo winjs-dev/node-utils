@@ -1,3 +1,4 @@
+# https://github.com/Tencent/tdesign-vue-next/blob/develop/.github/workflows/auto-release.yml
 name: Auto Release
 
 on:
