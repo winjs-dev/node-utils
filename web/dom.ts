@@ -79,14 +79,111 @@ export const asyncLoadCss = (() => {
   };
 })();
 
-export const addClassName = (el: Element, doc: Document, className: string) => {
-  const oldEl = doc.querySelector(`.${className}`);
-  if (oldEl && oldEl !== el) removeClassName(oldEl, className);
-  if (!el.classList.contains(className)) el.classList.add(className);
-};
+export const isServer = typeof window === 'undefined';
+const trim = (str: string): string => (str || '').replace(/^[\s\uFEFF]+|[\s\uFEFF]+$/g, '');
+
+export const on = ((): any => {
+  if (!isServer && document.addEventListener) {
+    return (
+      element: Node,
+      event: string,
+      handler: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ): any => {
+      if (element && event && handler) {
+        element.addEventListener(event, handler, options);
+      }
+    };
+  }
+  return (element: Node, event: string, handler: EventListenerOrEventListenerObject): any => {
+    if (element && event && handler) {
+      (element as any).attachEvent(`on${event}`, handler);
+    }
+  };
+})();
+
+export const off = ((): any => {
+  if (!isServer && document.removeEventListener) {
+    return (
+      element: Node,
+      event: string,
+      handler: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ): any => {
+      if (element && event) {
+        element.removeEventListener(event, handler, options);
+      }
+    };
+  }
+  return (element: Node, event: string, handler: EventListenerOrEventListenerObject): any => {
+    if (element && event) {
+      (element as any).detachEvent(`on${event}`, handler);
+    }
+  };
+})();
+
+export function once(
+  element: Node,
+  event: string,
+  handler: EventListenerOrEventListenerObject,
+  options?: boolean | AddEventListenerOptions,
+) {
+  const handlerFn = typeof handler === 'function' ? handler : handler.handleEvent;
+  const callback = (evt: any) => {
+    handlerFn(evt);
+    off(element, event, callback, options);
+  };
+
+  on(element, event, callback, options);
+}
+
+export function hasClassName(el: Element, className: string): any {
+  if (!el || !className) return false;
+  if (className.indexOf(' ') !== -1) throw new Error('className should not contain space.');
+  if (el.classList) {
+    return el.classList.contains(className);
+  }
+  return ` ${el.className} `.indexOf(` ${className} `) > -1;
+}
+
+export function addClassName(el: Element, className: string): any {
+  if (!el) return;
+  let curClass = el.className;
+  const classes = (className || '').split(' ');
+
+  for (let i = 0, j = classes.length; i < j; i++) {
+    const clsName = classes[i];
+    if (!clsName) continue;
+
+    if (el.classList) {
+      el.classList.add(clsName);
+    } else if (!hasClassName(el, clsName)) {
+      curClass += ` ${clsName}`;
+    }
+  }
+  if (!el.classList) {
+    el.className = curClass;
+  }
+}
 
 export const removeClassName = (el: Element, className: string) => {
-  el.classList.remove(className);
+  if (!el || !className) return;
+  const classes = className.split(' ');
+  let curClass = ` ${el.className} `;
+
+  for (let i = 0, j = classes.length; i < j; i++) {
+    const clsName = classes[i];
+    if (!clsName) continue;
+
+    if (el.classList) {
+      el.classList.remove(clsName);
+    } else if (hasClassName(el, clsName)) {
+      curClass = curClass.replace(` ${clsName} `, ' ');
+    }
+  }
+  if (!el.classList) {
+    el.className = trim(curClass);
+  }
 };
 
 export const removeClassNameByClassName = (doc: Document, className: string) => {
@@ -108,3 +205,49 @@ export const createDiv = ({ className, cssText }: { className: string; cssText: 
   el.style.cssText = cssText;
   return el;
 };
+
+/**
+ * 检查元素是否在父元素视图
+ * http://stackoverflow.com/questions/123999/how-to-tell-if-a-dom-element-is-visible-in-the-current-viewport
+ * @param elm 元素
+ * @param parent
+ * @returns boolean
+ */
+export function elementInViewport(elm: HTMLElement, parent?: HTMLElement): boolean {
+  const rect = elm.getBoundingClientRect();
+  if (parent) {
+    const parentRect = parent.getBoundingClientRect();
+    return (
+      rect.top >= parentRect.top &&
+      rect.left >= parentRect.left &&
+      rect.bottom <= parentRect.bottom &&
+      rect.right <= parentRect.right
+    );
+  }
+  return rect.top >= 0 && rect.left >= 0 && rect.bottom + 80 <= window.innerHeight && rect.right <= window.innerWidth;
+}
+
+/**
+ * 获取当前视图滑动的距离
+ * @returns { scrollTop: number, scrollLeft: number }
+ */
+export function getWindowScroll(): { scrollTop: number; scrollLeft: number } {
+  const { body } = document;
+  const docElm = document.documentElement;
+  const scrollTop = window.pageYOffset || docElm.scrollTop || body.scrollTop;
+  const scrollLeft = window.pageXOffset || docElm.scrollLeft || body.scrollLeft;
+
+  return { scrollTop, scrollLeft };
+}
+
+/**
+ * 获取当前视图的大小
+ * @returns { width: number, height: number }
+ */
+export function getWindowSize(): { width: number; height: number } {
+  if (window.innerWidth !== undefined) {
+    return { width: window.innerWidth, height: window.innerHeight };
+  }
+  const doc = document.documentElement;
+  return { width: doc.clientWidth, height: doc.clientHeight };
+}
