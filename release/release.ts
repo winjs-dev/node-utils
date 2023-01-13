@@ -1,9 +1,16 @@
 // https://github.com/vexip-ui/lint-config/blob/main/scripts/release.ts
-// 适用于 monorepo
+// 适用于 Monorepo
 // 发布时，选择需要发布的包
 // 版本号分别管理
 // 分支生成规则，packageName@version
 // 生成日志
+
+// 使用方式
+// ts-node release.js [--dry] [--tag]
+// --dry
+// 添加试运行脚本功能，即常见的 dry run，有时候我们仅仅只是想知道脚本运行的中间过程和结果，但是不希望造成实际的影响，就可以使用试运行的方式
+// --tag
+// 来控制是否打 tag
 
 import fs from 'node:fs'
 import minimist from 'minimist'

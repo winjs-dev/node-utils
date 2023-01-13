@@ -1,4 +1,11 @@
-// 适用于 single repo
+// 适用于 Polyrepo
+// 使用方式
+// ts-node release.js [--dry] [--tag]
+// --dry
+// 添加试运行脚本功能，即常见的 dry run，有时候我们仅仅只是想知道脚本运行的中间过程和结果，但是不希望造成实际的影响，就可以使用试运行的方式
+// --tag
+// 来控制是否打 tag
+
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
