@@ -6,7 +6,7 @@
 // 生成日志
 
 // 使用方式
-// ts-node release.js [--dry] [--tag]
+// ts-node release.ts [--dry] [--tag]
 // --dry
 // 添加试运行脚本功能，即常见的 dry run，有时候我们仅仅只是想知道脚本运行的中间过程和结果，但是不希望造成实际的影响，就可以使用试运行的方式
 // --tag
@@ -136,7 +136,7 @@ async function main() {
   await run('npx', changelogArgs, { cwd: pkgDir })
 
   // 提交改动
-  logStep('Comitting changes...')
+  logStep('Committing changes...')
 
   const { stdout } = await run('git', ['diff'], { stdio: 'pipe' })
 

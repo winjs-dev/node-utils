@@ -1,30 +1,19 @@
-// 适用于 Polyrepo
-// 使用方式
-// ts-node release.js [--dry] [--tag]
-// --dry
-// 添加试运行脚本功能，即常见的 dry run，有时候我们仅仅只是想知道脚本运行的中间过程和结果，但是不希望造成实际的影响，就可以使用试运行的方式
-// --tag
-// 来控制是否打 tag
-
 import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import minimist from 'minimist'
 import semver from 'semver'
 import prompts from 'prompts'
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { logger, run, dryRun } from './utils.ts'
+import { logger, run, dryRun, getPackageInfo } from './utils'
 
 import type { ReleaseType } from 'semver'
 
 const args = minimist<{
   d?: boolean,
   dry?: boolean,
-  t?: string,
-  tag?: string
+  p?: string,
+  preid?: string
 }>(process.argv.slice(2))
 
+const inputPkg = args._[0]
 const isDryRun = args.dry || args.d
 const releaseTag = args.tag || args.t
 
@@ -38,18 +27,15 @@ main().catch(error => {
 })
 
 async function main() {
-  const rootDir = path.resolve(fileURLToPath(import.meta.url), '../..')
-  const pkg = JSON.parse(
-    fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8')
-  )
-  const currentVersion = pkg.version
-  const preId = args.preid || args.p || (semver.prerelease(currentVersion)?.[0])
+  const { pkgName, pkgDir, pkgPath, pkg, isRoot, currentVersion } = await getPackageInfo(inputPkg)
+
+  const preId = String(args.preid || args.p || (semver.prerelease(currentVersion)?.[0] ?? ''))
 
   const versionIncrements: ReleaseType[] = [
     'patch',
     'minor',
     'major',
-    ...(preId ? ['prepatch', 'preminor', 'premajor', 'prerelease'] as const : [])
+    ...(preId ? (['prepatch', 'preminor', 'premajor', 'prerelease'] as const) : [])
   ]
 
   const inc = (i: ReleaseType) => semver.inc(currentVersion, i, preId)
@@ -66,22 +52,27 @@ async function main() {
 
   const version =
     release === 'custom'
-      ? (await prompts({
-        type: 'text',
-        name: 'version',
-        message: 'Input custom version:'
-      })).version
+      ? (
+        await prompts({
+          type: 'text',
+          name: 'version',
+          message: 'Input custom version:'
+        })
+      ).version
       : release.match(/\((.*)\)/)![1]
 
   if (!semver.valid(version)) {
     throw new Error(`Invalid target version: ${version}`)
   }
 
+  const target = pkgName.startsWith('common/') ? pkgName.substring(7) : pkgName
+  const tag = isRoot ? `v${version}` : `${target}@${version}`
+
   const { confirm } = await prompts([
     {
       type: 'confirm',
       name: 'confirm',
-      message: `Confirm release v${version}?`
+      message: `Confirm release ${tag}?`
     }
   ])
 
@@ -91,7 +82,9 @@ async function main() {
   logStep('Running test...')
 
   if (!isDryRun) {
-    await run('pnpm', ['test'])
+    if (isRoot) {
+      await run('pnpm', ['test'])
+    }
   } else {
     logSkipped()
   }
@@ -99,13 +92,17 @@ async function main() {
   logStep('Updating version...')
 
   pkg.version = version
-  fs.writeFileSync(path.resolve(rootDir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n')
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
 
   // 构建库
   logStep('Building package...')
 
   if (!isDryRun) {
-    await run('pnpm', ['build'])
+    if (isRoot) {
+      await run('pnpm', ['build'])
+    } else {
+      await run('pnpm', ['build'], { cwd: pkgDir })
+    }
   } else {
     logSkipped()
   }
@@ -113,17 +110,31 @@ async function main() {
   // 更新 Change Log
   logStep('Updating changelog...')
 
-  await run('pnpm', ['changelog'])
+  const changelogArgs = [
+    'conventional-changelog',
+    '-p',
+    'angular',
+    '-i',
+    'CHANGELOG.md',
+    '-s',
+    '--commit-path',
+    '.'
+  ]
+
+  if (!isRoot) {
+    changelogArgs.push('--lerna-package', target)
+  }
+
+  await run('npx', changelogArgs, { cwd: pkgDir })
 
   // 提交改动
-  logStep('Comitting changes...')
+  logStep('Committing changes...')
 
   const { stdout } = await run('git', ['diff'], { stdio: 'pipe' })
 
   if (stdout) {
     await runIfNotDry('git', ['add', '-A'])
-    await runIfNotDry('git', ['commit', '-m', `release: v${version}`])
-    await runIfNotDry('git', ['tag', `v${version}`])
+    await runIfNotDry('git', ['commit', '-m', `release${isRoot ? '' : `(${target})`}: v${version}`])
   } else {
     logSkipped('No changes to commit')
   }
@@ -149,20 +160,21 @@ async function main() {
   }
 
   try {
-    await run('pnpm', publishArgs, { stdio: 'pipe' })
-    logger.successText(`Successfully published v${version}'`)
-  } catch (err: any) {
-    if (err.stderr?.match(/previously published/)) {
-      logger.errorText(`Skipping already published v'${version}'`)
+    await run('pnpm', publishArgs, { stdio: 'pipe', cwd: pkgDir })
+    logger.successText(`Successfully published v${currentVersion}'`)
+  } catch (error) {
+    if (error.stderr?.match(/previously published/)) {
+      logger.errorText(`Skipping already published v'${currentVersion}'`)
     } else {
-      throw err
+      throw error
     }
   }
 
   // 推送到远程仓库
   logStep('Pushing to Remote Repository...')
 
-  await runIfNotDry('git', ['push', 'origin', `refs/tags/v${version}`])
+  await runIfNotDry('git', ['tag', tag])
+  await runIfNotDry('git', ['push', 'origin', `refs/tags/${tag}`])
   await runIfNotDry('git', ['push'])
 
   logger.withBothLn(() => {
