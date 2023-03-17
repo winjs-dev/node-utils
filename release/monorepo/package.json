@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "release": "ts-node scripts/release.ts"
+    "release": "ts-node scripts/release.ts",
+    "sort": "npx sort-package-json \"package.json\" \"packages/*/package.json\""
   },
   "devDependencies": {
     "@commitlint/cli": "^17.1.2",
