@@ -1,0 +1,13 @@
+{
+  "name": "turbo",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "esno scripts/turbo.ts --cmd build"
+  },
+  "devDependencies": {
+    "esno": "^0.14.1",
+    "ts-node": "^10.7.0",
+    "turbo": "^1.1.9",
+    "@umijs/utils": "^4.0.67"
+  }
+}
