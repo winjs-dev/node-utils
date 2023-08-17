@@ -12,33 +12,40 @@
 // --tag
 // 来控制是否打 tag
 
-import fs from 'node:fs'
-import minimist from 'minimist'
-import semver from 'semver'
-import prompts from 'prompts'
-import { logger, run, dryRun, getPackageInfo } from './utils'
+import fs from 'node:fs';
+import minimist from 'minimist';
+import semver from 'semver';
+import prompts from 'prompts';
+import { logger, run, dryRun, getPackageInfo } from './utils';
 
-import type { ReleaseType } from 'semver'
+import type { ReleaseType } from 'semver';
 
 const args = minimist<{
   d?: boolean,
   dry?: boolean,
   t?: string,
   tag?: string
-}>(process.argv.slice(2))
+}>(process.argv.slice(2));
 
-const inputPkg = args._[0]
-const isDryRun = args.dry || args.d
-const releaseTag = args.tag || args.t
+const inputPkg = args._[0];
+const isDryRun = args.dry || args.d;
+const releaseTag = args.tag || args.t;
 
-const runIfNotDry = isDryRun ? dryRun : run
-const logStep = (msg: string) => logger.withStartLn(() => logger.infoText(msg))
-const logSkipped = (msg = 'Skipped') => logger.warningText(`(${msg})`)
+const runIfNotDry = isDryRun ? dryRun : run;
+const logStep = (msg: string) => logger.withStartLn(() => logger.infoText(msg));
+const logSkipped = (msg = 'Skipped') => logger.warningText(`(${msg})`);
+let tag = '';
 
-main().catch(error => {
-  logger.error(error)
-  process.exit(1)
-})
+main().catch(async (error) => {
+  logger.error(error);
+  // 发布失败后
+  // 1.回退版本
+  // 2.撤销提交及删除本地 tag
+  await runIfNotDry('git', ['reset', '--hard', 'HEAD~1']);
+  await runIfNotDry('git', ['tag', '-d', tag]);
+  logger.errorText(`Failed published`);
+  process.exit(1);
+});
 
 async function main() {
   const {
@@ -47,17 +54,17 @@ async function main() {
     pkgPath,
     pkg,
     currentVersion
-  } = await getPackageInfo(inputPkg)
-  const preId = args.preid || args.p || (semver.prerelease(currentVersion)?.[0])
+  } = await getPackageInfo(inputPkg);
+  const preId = args.preid || args.p || (semver.prerelease(currentVersion)?.[0]);
 
   const versionIncrements: ReleaseType[] = [
     'patch',
     'minor',
     'major',
     ...(preId ? ['prepatch', 'preminor', 'premajor', 'prerelease'] as const : [])
-  ]
+  ];
 
-  const inc = (i: ReleaseType) => semver.inc(currentVersion, i, preId)
+  const inc = (i: ReleaseType) => semver.inc(currentVersion, i, preId);
 
   const { release } = await prompts({
     type: 'select',
@@ -67,7 +74,7 @@ async function main() {
       .map(i => `${i} (${inc(i)})`)
       .concat(['custom'])
       .map(i => ({ title: i, value: i }))
-  })
+  });
 
   const version =
     release === 'custom'
@@ -76,13 +83,13 @@ async function main() {
         name: 'version',
         message: 'Input custom version:'
       })).version
-      : release.match(/\((.*)\)/)![1]
+      : release.match(/\((.*)\)/)![1];
 
   if (!semver.valid(version)) {
-    throw new Error(`Invalid target version: ${version}`)
+    throw new Error(`Invalid target version: ${version}`);
   }
 
-  const tag = `${pkgName}@${version}`
+  tag = `${pkgName}@${version}`;
 
   const { confirm } = await prompts([
     {
@@ -90,35 +97,35 @@ async function main() {
       name: 'confirm',
       message: `Confirm release ${tag}?`
     }
-  ])
+  ]);
 
-  if (!confirm) return
+  if (!confirm) return;
 
   // 执行单元测试
-  logStep('Running test...')
+  logStep('Running test...');
 
   if (!isDryRun) {
-    await run('pnpm', ['test'])
+    await run('pnpm', ['test']);
   } else {
-    logSkipped()
+    logSkipped();
   }
 
-  logStep('Updating version...')
+  logStep('Updating version...');
 
-  pkg.version = version
-  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
+  pkg.version = version;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
   // 构建库
-  logStep('Building package...')
+  logStep('Building package...');
 
   if (!isDryRun) {
-    await run('pnpm', ['build'], { cwd: pkgDir })
+    await run('pnpm', ['build'], { cwd: pkgDir });
   } else {
-    logSkipped()
+    logSkipped();
   }
 
   // 更新 Change Log
-  logStep('Updating changelog...')
+  logStep('Updating changelog...');
 
   const changelogArgs = [
     'conventional-changelog',
@@ -131,25 +138,25 @@ async function main() {
     '.',
     '--lerna-package',
     pkgName
-  ]
+  ];
 
-  await run('npx', changelogArgs, { cwd: pkgDir })
+  await run('npx', changelogArgs, { cwd: pkgDir });
 
   // 提交改动
-  logStep('Committing changes...')
+  logStep('Committing changes...');
 
-  const { stdout } = await run('git', ['diff'], { stdio: 'pipe' })
+  const { stdout } = await run('git', ['diff'], { stdio: 'pipe' });
 
   if (stdout) {
-    await runIfNotDry('git', ['add', '-A'])
-    await runIfNotDry('git', ['commit', '-m', `release(${pkgName}): v${version}`])
-    await runIfNotDry('git', ['tag', tag])
+    await runIfNotDry('git', ['add', '-A']);
+    await runIfNotDry('git', ['commit', '-m', `release(${pkgName}): v${version}`]);
+    await runIfNotDry('git', ['tag', tag]);
   } else {
-    logSkipped('No changes to commit')
+    logSkipped('No changes to commit');
   }
 
   // 发布
-  logStep('Publishing package...')
+  logStep('Publishing package...');
 
   const publishArgs = [
     'publish',
@@ -158,38 +165,38 @@ async function main() {
     '--registry',
     'https://registry.npmjs.org/',
     '--no-git-checks'
-  ]
+  ];
 
   if (isDryRun) {
-    publishArgs.push('--dry-run')
+    publishArgs.push('--dry-run');
   }
 
   if (releaseTag) {
-    publishArgs.push('--tag', releaseTag)
+    publishArgs.push('--tag', releaseTag);
   }
 
   try {
-    await run('pnpm', publishArgs, { stdio: 'pipe', cwd: pkgDir })
-    logger.successText(`Successfully published v${version}'`)
+    await run('pnpm', publishArgs, { stdio: 'pipe', cwd: pkgDir });
+    logger.successText(`Successfully published v${version}'`);
   } catch (err: any) {
     if (err.stderr?.match(/previously published/)) {
-      logger.errorText(`Skipping already published v'${version}'`)
+      logger.errorText(`Skipping already published v'${version}'`);
     } else {
-      throw err
+      throw err;
     }
   }
 
   // 推送到远程仓库
-  logStep('Pushing to Remote Repository...')
+  logStep('Pushing to Remote Repository...');
 
-  await runIfNotDry('git', ['push', 'origin', `refs/tags/${tag}`])
-  await runIfNotDry('git', ['push'])
+  await runIfNotDry('git', ['push', 'origin', `refs/tags/${tag}`]);
+  await runIfNotDry('git', ['push']);
 
   logger.withBothLn(() => {
     if (isDryRun) {
-      logger.success('Dry run finished - run git diff to see package changes')
+      logger.success('Dry run finished - run git diff to see package changes');
     } else {
-      logger.success('Release successfully')
+      logger.success('Release successfully');
     }
-  })
+  });
 }

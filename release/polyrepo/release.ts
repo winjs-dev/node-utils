@@ -20,9 +20,16 @@ const releaseTag = args.tag || args.t
 const runIfNotDry = isDryRun ? dryRun : run
 const logStep = (msg: string) => logger.withStartLn(() => logger.infoText(msg))
 const logSkipped = (msg = 'Skipped') => logger.warningText(`(${msg})`)
+let tag = '';
 
-main().catch(error => {
+main().catch(async (error) => {
   logger.error(error)
+  // 发布失败后
+  // 1.回退版本
+  // 2.撤销提交及删除本地 tag
+  await runIfNotDry('git', ['reset', '--hard', 'HEAD~1']);
+  await runIfNotDry('git', ['tag', '-d', tag]);
+  logger.errorText(`Failed published`);
   process.exit(1)
 })
 
@@ -66,7 +73,7 @@ async function main() {
   }
 
   const target = pkgName.startsWith('common/') ? pkgName.substring(7) : pkgName
-  const tag = isRoot ? `v${version}` : `${target}@${version}`
+  tag = isRoot ? `v${version}` : `${target}@${version}`
 
   const { confirm } = await prompts([
     {
